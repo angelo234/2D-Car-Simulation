@@ -1,6 +1,7 @@
 package com.angelo.carsim;
 
 import java.awt.Color;
+import java.awt.DefaultKeyboardFocusManager;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.event.KeyEvent;
@@ -11,7 +12,6 @@ import java.util.concurrent.TimeUnit;
 
 public class Car implements IRendering{
 	
-	public static final double GRAVITY = 9.81;
 	public static final double AIR_TEMPERATURE = 298.15;
 	public static final double GASOLINE_ENERGY_DENSITY = 34.2;
 	
@@ -28,26 +28,24 @@ public class Car implements IRendering{
 	public static final double TRANSMISSION_EFFICIENCY = 0.85;		
 	
 	//Engine Constants
-	public static final double IDLE_RPM = 1500;
+	public static final double IDLE_RPM = 800;
 	public static final double REDLINE_RPM = 6700;
 	
-	//Body Constants
-	public static final double WHEEL_MASS = 20;
+	//Body Constants	
 	public static final double CAR_MASS = 1588;
-	public static final double WHEEL_RADIUS = 0.362;
 	public static final double DRAG_COEFFICIENT = 0.41;
 	public static final double FRONTAL_AREA = 2.54;
 	public static final double LENGTH = 4.52;
 	public static final double WIDTH = 1.82;
 	public static final double HEIGHT = 1.82;
 	public static final double WHEEL_BASE = 2.62;
-	public static final double COG_TO_FRONT_WHEEL = 1.493;
-	public static final double COG_TO_REAR_WHEEL = 1.127;
+	public static final double COG_TO_FRONT_WHEEL = 1.127;
+	public static final double COG_TO_REAR_WHEEL = 1.493;
 	public static final double COG_HEIGHT = 0.84;
 	public static final double FRONT_SUSPENSION_STIFFNESS = 88772.4;
 	public static final double REAR_SUSPENSION_STIFFNESS = 67010.4;
 	
-	public static final double MAX_BRAKE_TORQUE = 10000;
+	public static final double MAX_BRAKE_TORQUE = 7000;
 	
 	//Brake Rotors
 	public static final double CAST_IRON_SPECIFIC_HEAT_CAPACITY = 460;
@@ -56,42 +54,43 @@ public class Car implements IRendering{
 	public static final double CONVECTIVE_HEAT_TRANSFER_COEFFICIENT = -20;
 	public static final double BRAKE_ROTOR_SURFACE_AREA = 0.145931754;
 	
+	public Wheels frontWheels;
+	public Wheels rearWheels;
+	
 	
 	//When AWD disabled, car becomes FWD
 	public boolean awdEnabled = true;
 	public boolean electronicPowerDistributionEnabled = true;
 	public boolean electronicBrakeDistributionEnabled = true;
 	public boolean absEnabled = true;
+	public boolean tcsEnabled = true;
 	
-	public double vehicleVelocity = 0;
+	public double vehicleVelocity = 40;
 	
 	//Wheels
-	public double frontWheelVelocity;
-	public double rearWheelVelocity;
-	
 	public double frontRotorTemp = 298.15;
 	public double rearRotorTemp = 298.15;
-	
-	public boolean frontLocking = false;
-	public boolean rearLocking = false;
-	
-	public boolean frontSlipping = false;
-	public boolean rearSlipping = false;
 	
 	//ABS System
 	public boolean absActive = false;
 	public boolean ABSLightOn = false;
-
 	public double absTimer;
-	public boolean prevFrontLocking = false;
-	public boolean prevRearLocking = false;
+	
+	public static final double MAX_SLIP_RATIO = 0.22;
+	public static final double MIN_SLIP_RATIO = 0.14;
 
+	public boolean tcsActive;
+	public boolean tcsLightOn;
+	public double tcsTimer;
+	
+	public boolean prevFrontSlipping = false;
+	public boolean prevRearSlipping = false;
+	
 	public double mpg;
 	public double rpm;
 	public double carAcceleration;
 	public double weightF;
 	public double weightR;
-	public double driveTorque;
 	public double carDriveForce;
 	public double frontWheelsDriveTorque;
 	public double rearWheelsDriveTorque;
@@ -133,10 +132,13 @@ public class Car implements IRendering{
     
 	public DecimalFormat df;
 	
+	boolean stopZeroHundredUpdateSpeedGoalValues = false;
+	boolean stopHundredZeroUpdateSpeedGoalValues = false;
+	
 	private boolean holdingKey = false;
 	private double keyTimer;
 	
-	public Car() {
+	public Car() {	
 		carTexture = TextureLoader.getTexture("car3.png");
 		tireTexture = TextureLoader.getTexture("tire.png");
 		
@@ -154,6 +156,10 @@ public class Car implements IRendering{
 		rightTireTransform = AffineTransform.getTranslateInstance(499,317);
 		rightTireTransform.scale(TIRE_TEXTURE_SCALE, TIRE_TEXTURE_SCALE);
 		
+		frontWheels = new Wheels();
+		rearWheels = new Wheels();
+		
+		updateWeightDistribution(0);
 		
 		player = new AudioPlayer(tireSquealAudioFilePath);
 		
@@ -171,26 +177,23 @@ public class Car implements IRendering{
 		
 		double tDiameter = tireTexture.getWidth(null);	
 
-		leftTireTransform.rotate(rearWheelVelocity / WHEEL_RADIUS * delta, tDiameter / 2.0, tDiameter / 2.0);
-		rightTireTransform.rotate(frontWheelVelocity / WHEEL_RADIUS * delta, tDiameter / 2.0, tDiameter / 2.0);
+		leftTireTransform.rotate(rearWheels.getAngularVelocity() * delta, tDiameter / 2.0, tDiameter / 2.0);
+		rightTireTransform.rotate(frontWheels.getAngularVelocity() * delta, tDiameter / 2.0, tDiameter / 2.0);
 		
 		//System.out.println(leftTireTransform.getTranslateX()+", "+leftTireTransform.getTranslateY());
 		
 		double kmh = 0;
 		
 		if(awdEnabled) {
-			kmh = (frontWheelVelocity + rearWheelVelocity) / 2 * 3.6;
+			kmh = (frontWheels.getLinearVelocity() + rearWheels.getLinearVelocity()) / 2 * 3.6;
 		}
 		else {
-			kmh = frontWheelVelocity * 3.6;
+			kmh = frontWheels.getLinearVelocity() * 3.6;
 		}
 		
 		Display.kmh.setValue(kmh);
 		Display.rpm.setValue(rpm / 1000.0);
 	}
-	
-	boolean stopZeroHundredUpdateSpeedGoalValues = false;
-	boolean stopHundredZeroUpdateSpeedGoalValues = false;
 	
 	private void updateSpeedGoalValues(double delta) {
 		//0-100
@@ -219,7 +222,7 @@ public class Car implements IRendering{
 			stopHundredZeroUpdateSpeedGoalValues = false;
 		}
 		if(!stopHundredZeroUpdateSpeedGoalValues) {
-			if (vehicleVelocity == 0){
+			if (vehicleVelocity <= 0.1){
 				hundredZeroEndTime = System.nanoTime();
 				hundredZeroEndDistance = Road.roadTransform.getTranslateX();
 				stopHundredZeroUpdateSpeedGoalValues = true;
@@ -254,6 +257,9 @@ public class Car implements IRendering{
 		rearRotorTemp = rearFinalTemp;	
 	}
 
+	private boolean prevFrontABSUse = false;
+	private boolean prevRearABSUse = false;
+	
 	private void updateElectronicSystems(double delta) {
 		
 		//ABS
@@ -262,54 +268,67 @@ public class Car implements IRendering{
 			
 			if(absTimer >= 1.0/15.0) {
 				boolean absRunning = false;
+
+				double frontSlipRatio = Math.abs(frontWheels.getSlipRatio(vehicleVelocity));
 				
-				if(vehicleVelocity > 0.1 && (frontLocking || Display.brakeSlider.getValue() / 100.0 > frontBrakePosition) && Display.brakeSlider.getValue() != 0) {
-					absRunning = true;
-					absActive = true;
-			
-					if(prevFrontLocking) {
-						frontBrakePosition -= 0.05;
+				if((vehicleVelocity > 0.1 && Display.brakeSlider.getValue() > 0 && frontSlipRatio > MAX_SLIP_RATIO) || prevFrontABSUse) {
+					absRunning = true;				
+		
+					if(frontSlipRatio < MIN_SLIP_RATIO) {
+						absActive = true;
+						frontBrakePosition += 0.25;
+						
+						prevFrontABSUse = true;
+					}
+					else if(frontSlipRatio > MAX_SLIP_RATIO) {
+						absActive = true;
+						frontBrakePosition -= 0.25;
+						
+						prevFrontABSUse = true;
 					}
 					
-					else {
-						frontBrakePosition += 0.05;				
-					}
 					
-					if(frontBrakePosition < 0) {
-						frontBrakePosition = 0;
-					}
-					else if(frontBrakePosition > 1) {
+					if(frontBrakePosition > 1) {
 						frontBrakePosition = 1;
 					}
-					
-					prevFrontLocking = frontLocking;		
-					
-					//System.out.println("ABS! Front brake pos: "+frontBrakePosition);	
+					else if(frontBrakePosition < 0) {
+						frontBrakePosition = 0;
+					}
+
+					System.out.println("ABS! Front brake pos: "+df.format(frontBrakePosition) + ", velocity: "+df.format(frontWheels.getLinearVelocity()));	
 				}
-				if(vehicleVelocity > 0.1 && (rearLocking || Display.brakeSlider.getValue() / 100.0 > rearBrakePosition) && Display.brakeSlider.getValue() != 0) {
+				
+				double rearSlipRatio = Math.abs(rearWheels.getSlipRatio(vehicleVelocity));
+				
+				if((vehicleVelocity > 0.1 && Display.brakeSlider.getValue() > 0 && rearSlipRatio > MAX_SLIP_RATIO) || prevRearABSUse) {
 					absRunning = true;
-					absActive = true;
-			
-					if(prevRearLocking) {
-						rearBrakePosition -= 0.05;
+					//absActive = true;
+				
+					
+					if(rearSlipRatio < MIN_SLIP_RATIO) {
+						absActive = true;
+						rearBrakePosition += 0.25;
+						
+						prevRearABSUse = true;
+					}
+					else if(rearSlipRatio > MAX_SLIP_RATIO) {
+						absActive = true;
+						rearBrakePosition -= 0.25;
+						
+						prevRearABSUse = true;
 					}
 					
-					else {
-						rearBrakePosition += 0.05;				
-					}
 					
-					if(rearBrakePosition < 0) {
-						rearBrakePosition = 0;
-					}
-					else if(rearBrakePosition > 1) {
+					if(rearBrakePosition > 1) {
 						rearBrakePosition = 1;
 					}
-					
-					prevRearLocking = rearLocking;
-					
-					//System.out.println("ABS! Rear brake pos: "+rearBrakePosition);		
+					else if(rearBrakePosition < 0) {
+						rearBrakePosition = 0;
+					}
+
+					System.out.println("ABS! Rear brake pos: "+df.format(rearBrakePosition) + ", velocity: "+df.format(rearWheels.getLinearVelocity()));		
 				}
-				absActive = absRunning;
+				//absActive = absRunning;
 
 				absTimer = 0;
 			}	
@@ -319,8 +338,55 @@ public class Car implements IRendering{
 				Display.absTimer += delta;
 			}
 		}
+		
+		/*
+		// TCS
+		if (tcsEnabled) {
+			// Update 15 times per second
+
+			if (tcsTimer >= 1.0 / 15.0) {
+				boolean tcsRunning = false;
+
+				if(vehicleVelocity > 0.1 
+						&& (frontWheels.slipping || rearWheels.slipping || Display.throttleSlider.getValue() / 100.0 > throttlePosition)
+						&& Display.throttleSlider.getValue() != 0){
+						
+					tcsRunning = true;
+					tcsActive = true;
+
+					if (prevFrontSlipping || prevRearSlipping) {
+						throttlePosition -= 0.025;
+					}
+					else {
+						throttlePosition += 0.025;
+					}
+
+					if (throttlePosition < 0) {
+						throttlePosition = 0;
+					} else if (throttlePosition > 1) {
+						throttlePosition = 1;
+					}
+
+					prevFrontSlipping = frontWheels.slipping;
+					prevRearSlipping = rearWheels.slipping;
+
+					//System.out.println("TCS! Throttle pos: "+ df.format(throttlePosition) );
+				}
+	
+				tcsActive = tcsRunning;
+
+				tcsTimer = 0;
+			}
+			tcsTimer += delta;
+
+			if (tcsActive) {
+				Display.tcsTimer += delta;
+			}
+		}
+		*/
 	}
 	
+		
 	private void pollInput(double delta) {
 		//System.out.println(brakePosition);
 			
@@ -366,165 +432,79 @@ public class Car implements IRendering{
 			//System.out.println("ay lmao");
 		}
 		
-		throttlePosition = Display.throttleSlider.getValue() / 100.0;
+		if(!tcsActive) {
+			throttlePosition = Display.throttleSlider.getValue() / 100.0;
+		}
+		
 		currentGear = Display.gearSlider.getValue() - 1;
 
 	}
 	
+	double maxFrontTorque = 0;
+	
 	private void updateVehicleAcceleration(double delta) {	
-		frontWheelsDriveTorque = getDriveTorqueForFrontWheels(true, delta, true);
+		frontWheelsDriveTorque = getDriveTorqueForFrontWheels(delta, true);
 		rearWheelsDriveTorque = getDriveTorqueForRearWheels(awdEnabled, delta, true);
-		
-		driveTorque = frontWheelsDriveTorque + rearWheelsDriveTorque;
-		
-		//System.out.println("Front Torque "+frontWheelsDriveTorque);
-		//System.out.println("Max Front Torque "+getFrontWheelsMaxDriveTorqueStatic());
-		
-		carDriveForce = 0;
-		
 
-		if(vehicleVelocity < 0) {
-			vehicleVelocity = 0;
-			carAcceleration = 0;
-			carDriveForce = 0;
-			driveTorque = 0;
+		if(vehicleVelocity <= 0 && frontWheelsDriveTorque < 0) {
+			frontWheelsDriveTorque = 0;		
 		}
 		
-		
-		double fMass = weightF / GRAVITY;
-		
-		double maxFStaticTorque = fMass * GRAVITY * Road.staticCoefficientOfFriction * WHEEL_RADIUS;
-		double maxFKineticTorque = fMass * GRAVITY * Road.kineticCoefficientOfFriction * WHEEL_RADIUS;
-		
-		
-		double inertia = 0.5 * WHEEL_MASS * WHEEL_RADIUS * WHEEL_RADIUS;
-		
-		//double fAngularAcceleration = frontWheelsDriveTorque / inertia;
+		if(vehicleVelocity <= 0 && rearWheelsDriveTorque < 0) {
+			rearWheelsDriveTorque = 0;		
+		}
 
-		//double fForce = fAngularAcceleration * WHEEL_RADIUS * WHEEL_MASS;
-		 
-
-		//frontWheelVelocity += fForce / fMass / WHEEL_RADIUS * delta;
+		frontWheels.update(delta);
+		rearWheels.update(delta);
 		
 		
-		//frontWheelVelocity += frontWheelsDriveTorque / WHEEL_RADIUS / fMass * delta;
+		double frontWheelTorque = frontWheels.getTractionTorque(weightF, vehicleVelocity);
+		double rearWheelTorque = rearWheels.getTractionTorque(weightR, vehicleVelocity);
 		
-		double rMass = weightR / GRAVITY;
-		
-		double maxRStaticTorque = rMass * GRAVITY * Road.staticCoefficientOfFriction * WHEEL_RADIUS;
-		double maxRKineticTorque = rMass * GRAVITY * Road.kineticCoefficientOfFriction * WHEEL_RADIUS;
-		
-		/*
-		double rAngularAcceleration = rearWheelsDriveTorque / inertia;
-
-		double rForce = rAngularAcceleration * WHEEL_RADIUS * WHEEL_MASS;
-		
-		rearWheelVelocity += rForce / rMass / WHEEL_RADIUS * delta;
-		*/
-		
-		//rearWheelVelocity += rearWheelsDriveTorque / WHEEL_RADIUS / rMass * delta;
-		
-		double differenceInSpeedForSlipping = 1f / 3.6f;
-		
-		double torquePutDown = 0;
-		
-		frontWheelVelocity += frontWheelsDriveTorque / WHEEL_RADIUS / fMass * delta; 
-		rearWheelVelocity += rearWheelsDriveTorque / WHEEL_RADIUS / rMass * delta;
-		
-		//Front Wheels
-		
-		if(frontWheelsDriveTorque > maxFStaticTorque) {
-			torquePutDown += maxFKineticTorque;		
-			frontSlipping = true;
-		}
-		else if(frontWheelsDriveTorque < -maxFStaticTorque) {
-			torquePutDown -= maxFKineticTorque;
-			frontLocking = true;
-		}
-		else {
-
-			if(frontWheelVelocity + differenceInSpeedForSlipping < vehicleVelocity) {
-				torquePutDown -= maxFStaticTorque;
-				
-				frontWheelVelocity += maxFStaticTorque / WHEEL_RADIUS / fMass * delta;
-			}
-			else if(frontWheelVelocity > vehicleVelocity + differenceInSpeedForSlipping){
-				torquePutDown += maxFStaticTorque;
-				
-				frontWheelVelocity -= maxFStaticTorque / WHEEL_RADIUS / fMass * delta;
-			}
-			else {
-				torquePutDown += frontWheelsDriveTorque;
-				frontWheelVelocity = vehicleVelocity;
-			}
-			
-			
-			frontLocking = false;
-			frontSlipping = false;
-		}
-			
-		//Rear Wheels
-		
-		if(rearWheelsDriveTorque > maxRStaticTorque) {
-			torquePutDown += maxRKineticTorque;
-			rearSlipping = true;
-		}
-		else if(rearWheelsDriveTorque < -maxRStaticTorque) {
-			torquePutDown -= maxRKineticTorque;
-			rearLocking = true;
-		}
-		else {
-
-			if(rearWheelVelocity + differenceInSpeedForSlipping < vehicleVelocity) {
-				torquePutDown -= maxFStaticTorque;
-				
-				rearWheelVelocity += maxFStaticTorque / WHEEL_RADIUS / fMass * delta;
-			}
-			else if(rearWheelVelocity > vehicleVelocity + differenceInSpeedForSlipping){
-				torquePutDown += maxFStaticTorque;
-				
-				rearWheelVelocity -= maxFStaticTorque / WHEEL_RADIUS / fMass * delta;
-			}
-			else {
-				torquePutDown += rearWheelsDriveTorque;
-				rearWheelVelocity = vehicleVelocity;
-			}
-			
-			rearLocking = false;
-			rearSlipping = false;
+		if(maxFrontTorque < frontWheelTorque) {
+			maxFrontTorque = frontWheelTorque;
+			//System.out.println(maxFrontTorque);
 		}
 		
-		double driveForce = torquePutDown / WHEEL_RADIUS - (getDragForce() + getRRForce());
+		//System.out.println(frontWheelTorque);
 		
-		if(vehicleVelocity == 0) {
-			driveForce = Math.max(0, driveForce);
-		}
+		double totalFrontTorque = frontWheelsDriveTorque - frontWheelTorque;
+		double totalRearTorque = rearWheelsDriveTorque - rearWheelTorque;		
 		
-		carAcceleration = driveForce / CAR_MASS;		
+		frontWheels.applyTorque(totalFrontTorque);
+		rearWheels.applyTorque(totalRearTorque);
 		
-		updateWeightDistribution(driveForce);
+		double netForce = (frontWheelTorque + rearWheelTorque) / Wheels.RADIUS;
 		
+		//System.out.println(frontWheelTorque);
+		
+		updateWeightDistribution(netForce);
+		
+		
+		carAcceleration = netForce / CAR_MASS;
 		
 		vehicleVelocity += carAcceleration * delta;
 		
-		if(frontWheelVelocity < 0) {
-			frontWheelVelocity = 0;			
-		}
-		if(rearWheelVelocity < 0) {
-			rearWheelVelocity = 0;
-		}
 		if(vehicleVelocity < 0) {
 			vehicleVelocity = 0;
 		}
-		
 	}
 	
 	private void updateWeightDistribution(double driveForce) {
 		//Weight on Front Axle: Wf = (c/L)*W - (h/L)*M*a 
 	    //Weight on Rear Axle: Wr = (b/L)*W + (h/L)*M*a
 		
-		weightF = (COG_TO_FRONT_WHEEL / WHEEL_BASE) * CAR_MASS * GRAVITY - (COG_HEIGHT / WHEEL_BASE) * driveForce;
-		weightR = (COG_TO_REAR_WHEEL / WHEEL_BASE) * CAR_MASS * GRAVITY + (COG_HEIGHT / WHEEL_BASE) * driveForce;
+		weightF = (COG_TO_REAR_WHEEL / WHEEL_BASE) * CAR_MASS * Main.GRAVITY - (COG_HEIGHT / WHEEL_BASE) * driveForce;
+		weightR = (COG_TO_FRONT_WHEEL / WHEEL_BASE) * CAR_MASS * Main.GRAVITY + (COG_HEIGHT / WHEEL_BASE) * driveForce;
+		
+		weightF = Math.min(weightF, CAR_MASS * Main.GRAVITY);
+		weightR = Math.min(weightR, CAR_MASS * Main.GRAVITY);
+		
+		weightF = Math.max(weightF, 0);
+		weightR = Math.max(weightR, 0);
+		
+		//System.out.println(weightF + "_" + weightR);
+		
 		
 		double frontHeight = weightF / -FRONT_SUSPENSION_STIFFNESS;
 		double rearHeight = weightR / -REAR_SUSPENSION_STIFFNESS;
@@ -553,32 +533,29 @@ public class Car implements IRendering{
 		return driveTorque;
 	}
 	
-	private double getDriveTorqueForFrontWheels(boolean isPowered, double delta, boolean updateBrakeTemperature) {
+	private double getDriveTorqueForFrontWheels(double delta, boolean updateBrakeTemperature) {
 		double brakeTorque = getFrontBrakeTorque();
 		
 		if(electronicBrakeDistributionEnabled) {
-			brakeTorque *= (weightF / GRAVITY / CAR_MASS);
+			brakeTorque *= Math.min(weightF / Main.GRAVITY / CAR_MASS, 1);
 		}
 		else {
 			brakeTorque /= 2;
 		}	
 		
 		if(updateBrakeTemperature) {
-			frontRotorTemp += (brakeTorque / WHEEL_RADIUS * frontWheelVelocity * delta) / (10 * CAST_IRON_SPECIFIC_HEAT_CAPACITY);
+			//frontRotorTemp += (brakeTorque / WHEEL_RADIUS * frontWheelVelocity * delta) / (10 * CAST_IRON_SPECIFIC_HEAT_CAPACITY);
 		}	
 		
 		double driveTorque = getOutputShaftTorque(delta);
 		
-		if(isPowered) {
+		if(awdEnabled) {
 			if(electronicPowerDistributionEnabled) {
-				driveTorque *= (weightF / GRAVITY / CAR_MASS);
+				driveTorque *= (weightF / Main.GRAVITY / CAR_MASS);
 			}
 			else {
 				driveTorque /= 2;
 			}		
-		}
-		else {
-			driveTorque = 0;
 		}
 		
 		return (driveTorque - brakeTorque);
@@ -588,7 +565,7 @@ public class Car implements IRendering{
 		double brakeTorque = getRearBrakeTorque();
 		
 		if(electronicBrakeDistributionEnabled) {
-			brakeTorque *= (weightR / GRAVITY / CAR_MASS);
+			brakeTorque *= Math.min(weightR / Main.GRAVITY / CAR_MASS, 1);
 		}
 		else {
 			brakeTorque /= 2;
@@ -599,7 +576,7 @@ public class Car implements IRendering{
 		//v = s/t 
 		
 		if(updateBrakeTemperature) {
-			rearRotorTemp += (brakeTorque / WHEEL_RADIUS * rearWheelVelocity * delta) / (10 * CAST_IRON_SPECIFIC_HEAT_CAPACITY);
+			//rearRotorTemp += (brakeTorque / WHEEL_RADIUS * rearWheelVelocity * delta) / (10 * CAST_IRON_SPECIFIC_HEAT_CAPACITY);
 		}
 		
 		
@@ -607,7 +584,7 @@ public class Car implements IRendering{
 		
 		if(isPowered) {
 			if(electronicPowerDistributionEnabled) {
-				driveTorque *= (weightR / GRAVITY / CAR_MASS);
+				driveTorque *= (weightR / Main.GRAVITY / CAR_MASS);
 			}
 			else {
 				driveTorque /= 2;
@@ -622,16 +599,14 @@ public class Car implements IRendering{
 	}
 	
 	private double getFrontBrakeTorque() {
-		double torque = MAX_BRAKE_TORQUE * frontBrakePosition;
-		
-		return torque;
+		return MAX_BRAKE_TORQUE * frontBrakePosition;
 	}
 	
 	private double getRearBrakeTorque() {
-		double torque = MAX_BRAKE_TORQUE * rearBrakePosition;
-		
-		return torque;
+		return MAX_BRAKE_TORQUE * rearBrakePosition;
 	}
+	
+	/*
 	
 	private double getFrontWheelsMaxDriveTorqueStatic() {
 		return weightF * Road.staticCoefficientOfFriction * WHEEL_RADIUS;
@@ -648,14 +623,8 @@ public class Car implements IRendering{
 	private double getRearWheelsMaxDriveTorqueKinetic() {
 		return weightR * Road.kineticCoefficientOfFriction * WHEEL_RADIUS;
 	}
-	
-	private double getMaxDriveForceStatic() {
-		return CAR_MASS * GRAVITY * Road.kineticCoefficientOfFriction;
-	}
-	
-	private double getMaxDriveForceKinetic() {
-		return CAR_MASS * GRAVITY * Road.kineticCoefficientOfFriction;
-	}
+	*/
+
 	
 	private double getDragForce(){
 		return (double) (0.5f * DRAG_COEFFICIENT * FRONTAL_AREA * 1.29f * Math.pow(vehicleVelocity, 2));
@@ -669,28 +638,17 @@ public class Car implements IRendering{
 		double centerDiffVelocity = 0;
 		
 		if(awdEnabled) {
-			centerDiffVelocity = (frontWheelVelocity + rearWheelVelocity) / 2;
+			centerDiffVelocity = (frontWheels.getLinearVelocity() + rearWheels.getLinearVelocity()) / 2;
 		}
 		else {
-			centerDiffVelocity = frontWheelVelocity;
+			centerDiffVelocity = frontWheels.getLinearVelocity();
 		}
 		
-		double wheelRotationRate = (double) (centerDiffVelocity * 30 / (Math.PI * WHEEL_RADIUS));
+		double wheelRotationRate = (double) (centerDiffVelocity * 30 / (Math.PI * Wheels.RADIUS));
 		
 		rpm = wheelRotationRate * getGearRatio(currentGear) * DIFF_RATIO;
 		
 		rpm = Math.max(rpm, IDLE_RPM);
-		rpm = Math.min(rpm, REDLINE_RPM);
-		
-		//System.out.println(rpm);
-		
-		double v = ((rpm / (getGearRatio(currentGear) * DIFF_RATIO)) * Math.PI * WHEEL_RADIUS) / 30;
-		
-		if(frontWheelVelocity >= rearWheelVelocity) {
-			//frontVelocity = v;
-			//rearVelocity = v - frontRearDiff;
-		}
-		
 	}
 
 	private double getGearRatio(int gear){
@@ -716,11 +674,11 @@ public class Car implements IRendering{
 	}
 	
 	public double getEngineTorqueFromRPM(double rpm){
-		//−0.00000846x2+0.0749x+22.6		
-		double torque = (double) (-0.00000846 * Math.pow(rpm, 2) + 0.0749 * rpm + 22.6);
+		//-0.00000846x2+0.0749x+22.6		
+		double torque = (double) (-0.00000846 * Math.pow(rpm, 2) + 0.0749 * rpm + 222.6);
 		
 		if(rpm >= REDLINE_RPM) {
-			torque = -10;
+			torque = 0;
 		}
 		
 		return torque;
@@ -732,50 +690,52 @@ public class Car implements IRendering{
 		g2.drawString("Acceleration: "+df.format(carAcceleration * 0.101971621) +" g", 295, 25);
 		
 		String strZeroHundredTime = df.format(TimeUnit.NANOSECONDS.toMillis(zeroHundredTime) / 1000f);
-		String zeroHundredGForce = df.format(zeroHundredDistance / (TimeUnit.NANOSECONDS.toMillis(zeroHundredTime) / 1000f * TimeUnit.NANOSECONDS.toMillis(zeroHundredTime) / 1000f * 0.5f) / GRAVITY); 
-		String hundredZeroGForce = df.format(hundredZeroDistance / (TimeUnit.NANOSECONDS.toMillis(hundredZeroTime) / 1000f * TimeUnit.NANOSECONDS.toMillis(hundredZeroTime) / 1000f * 0.5f) / GRAVITY); 
+		String zeroHundredGForce = df.format(zeroHundredDistance / (TimeUnit.NANOSECONDS.toMillis(zeroHundredTime) / 1000f * TimeUnit.NANOSECONDS.toMillis(zeroHundredTime) / 1000f * 0.5f) / Main.GRAVITY); 
+		String hundredZeroGForce = df.format(hundredZeroDistance / (TimeUnit.NANOSECONDS.toMillis(hundredZeroTime) / 1000f * TimeUnit.NANOSECONDS.toMillis(hundredZeroTime) / 1000f * 0.5f) / Main.GRAVITY); 
 		
 		String strHundredZeroTime = df.format(TimeUnit.NANOSECONDS.toMillis(hundredZeroTime) / 1000f);
 		
 		g2.drawString("0-100 (Time/Distance/Average Gs): "+ strZeroHundredTime + "s / "+df.format(zeroHundredDistance) + "m / "+ zeroHundredGForce + " g", 450, 25);
 		g2.drawString("100-0 (Time/Distance/Average Gs): "+ strHundredZeroTime + "s / "+df.format(hundredZeroDistance) + "m / "+ hundredZeroGForce + " g", 450, 50);
 		
-		g2.drawString("Front/Rear Wheels Velocity: "+df.format(frontWheelVelocity * 3.6) +" km/h / "+df.format(rearWheelVelocity * 3.6) +" km/h", 150, 50);
+		g2.drawString("Front/Rear Wheels Velocity: "+df.format(frontWheels.getLinearVelocity() * 3.6) +" km/h / "+df.format(rearWheels.getLinearVelocity() * 3.6) +" km/h", 150, 50);
 		
-		g2.drawString("Weight Distribution (F/R): "+df.format(weightF / GRAVITY / CAR_MASS * 100) +"% / "+df.format(weightR / GRAVITY / CAR_MASS * 100)+"%", 150, 75);
+		g2.drawString("Weight Distribution (F/R): "+df.format(weightF / Main.GRAVITY / CAR_MASS * 100) +"% / "+df.format(weightR / Main.GRAVITY / CAR_MASS * 100)+"%", 150, 75);
 		
 		//g2.drawString("Wanted Drive Force: "+df.format(wantedDriveForce) +" N", 200, 100);
-		
-		if((frontLocking || rearLocking || frontSlipping || rearSlipping) && vehicleVelocity > 0) {
+		/*
+		if((frontWheels.locking || rearWheels.locking || frontWheels.slipping || rearWheels.slipping) && vehicleVelocity > 0) {
 			g2.setColor(Color.RED);
 			
-			if(frontSlipping || frontLocking) {
+			if(frontWheels.slipping || frontWheels.locking) {
 				g2.drawString("Front Wheels Slipping!", 470, 75);
 			}
-			if(rearSlipping || rearLocking) {
+			if(rearWheels.slipping || rearWheels.locking) {
 				g2.drawString("Rear Wheels Slipping!", 470, 100);
 			}
 			
 			if(Road.staticCoefficientOfFriction > 0.35) {
-				double frontDiff = Math.abs(Main.car.frontWheelVelocity - Main.car.vehicleVelocity);
-				double rearDiff = Math.abs(Main.car.rearWheelVelocity - Main.car.vehicleVelocity);
+				double frontDiff = Math.abs(frontWheels.getLinearVelocity() - vehicleVelocity);
+				double rearDiff = Math.abs(rearWheels.getLinearVelocity() - vehicleVelocity);
 				
-				if(frontDiff > 5) {
+				if(frontDiff > 3) {
 					player.play();
 					
 					player.setVolume((float)frontDiff * 0.1f);
 				}
-				if(rearDiff > 5) {
+				if(rearDiff > 3) {
 					player.play();
 
 					player.setVolume((float)rearDiff * 0.1f);
 				}	
 			}
-				
+			
 		}
+		
 		else {
 			player.stop();
 		}
+		*/
 		
 		g2.setColor(Color.BLACK);
 		
@@ -784,6 +744,7 @@ public class Car implements IRendering{
 		double frontMaxTorque;
 		double rearMaxTorque;
 		
+		/*
 		if(frontSlipping || frontLocking) {
 			frontMaxTorque = getFrontWheelsMaxDriveTorqueKinetic();
 		}
@@ -798,8 +759,9 @@ public class Car implements IRendering{
 			rearMaxTorque = getRearWheelsMaxDriveTorqueStatic();
 		}
 		
-		g2.drawString("Avaliable Drive Torque (F/R): "+df.format(frontMaxTorque)+" Nm / "+df.format(rearMaxTorque)+" Nm", 150, 150);
 		
+		g2.drawString("Avaliable Drive Torque (F/R): "+df.format(frontMaxTorque)+" Nm / "+df.format(rearMaxTorque)+" Nm", 150, 150);
+		*/
 		g2.drawString("Brake Rotor Temperatures (F/R): "+df.format(frontRotorTemp - 273.15)+" C / "+df.format(rearRotorTemp - 273.15)+" C", 150, 175);
 		
 		double mpg = 0;

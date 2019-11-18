@@ -46,24 +46,41 @@ public class Display extends JFrame{
 	public static JSlider throttleSlider = new JSlider();
 	public static JSlider gearSlider = new JSlider();
 	
+	public static boolean absLightOn = false;
 	public static double absTimer;
 	
 	private static Image absTexture;
+	private static AffineTransform absImageTransform; 
+	
+	public static boolean tcsLightOn = false;
+	public static double tcsTimer;
+	
+	private static Image tcsTexture;
+	private static AffineTransform tcsImageTransform; 
 	
 	private static int framesCount;
 	private static int timePast;
 	private static long framesTimer;
 	private static int framesCountAvg;
 	
-	private static AffineTransform absImageTransform; 
+	
 	
 	public Display() {
 		super("2D Car Sim");
 		
 		absTexture = TextureLoader.getTexture("abs.png");
 		
+		absTexture = absTexture.getScaledInstance(60, 48, Image.SCALE_DEFAULT);
+		
 		absImageTransform = AffineTransform.getTranslateInstance(25,0);
-		absImageTransform.scale(0.05, 0.05);
+		//absImageTransform.scale(0.05, 0.05);
+		
+		tcsTexture = TextureLoader.getTexture("tcs.png");
+	
+		tcsTexture = tcsTexture.getScaledInstance(50, 50, Image.SCALE_DEFAULT);
+		
+		tcsImageTransform = AffineTransform.getTranslateInstance(100,0);
+		//tcsImageTransform.scale(0.1, 0.1);
 		
 		this.setLayout(new BoxLayout(this.getContentPane(), BoxLayout.X_AXIS));
 		
@@ -138,12 +155,15 @@ public class Display extends JFrame{
 		return localJPanel;
 	}
 	
-	static boolean absLightOn = false;
-	
 	public static JPanel createSymbolsPanel() {
 		JPanel localJPanel = new JPanel() {
 			public void paintComponent(Graphics g) {
 				Graphics2D g2 = (Graphics2D) g;
+				
+			    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+			    g2.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+			    g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+			    g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);		    
 				
 				if(absTimer > 1.0/6.0) {
 					absLightOn = !absLightOn;
@@ -154,10 +174,24 @@ public class Display extends JFrame{
 				if(!Main.car.absActive) {
 					absLightOn = false;
 				}
-				
+
 				g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, absLightOn ? 1.0f : 0.1f));
 				
 				g2.drawImage(absTexture, absImageTransform, null);
+				
+				if(tcsTimer > 1.0/6.0) {
+					tcsLightOn = !tcsLightOn;
+		
+					tcsTimer = 0;
+				}
+				
+				if(!Main.car.tcsActive) {
+					tcsLightOn = false;
+				}
+
+				g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, tcsLightOn ? 1.0f : 0.1f));
+				
+				g2.drawImage(tcsTexture, tcsImageTransform, null);
 			}
 			
 		};

@@ -2,6 +2,8 @@ package com.angelo.carsim;
 
 public class Main {
 	
+	public static final double GRAVITY = 9.81;
+	
 	//Updates per Second
 	private static final int UPS = 1000;
 	private static final int FPS = 144;
@@ -29,6 +31,8 @@ public class Main {
 	
 	private static void update(){
 		double dT = getDeltaTime();
+		
+		//dT *= 0.5;
 		
 		car.update(dT);
 		road.update(dT);
