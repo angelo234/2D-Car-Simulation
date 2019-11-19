@@ -171,7 +171,7 @@ public class Display extends JFrame{
 					absTimer = 0;
 				}
 				
-				if(!Main.car.absActive) {
+				if(!Main.car.frontABSUse && !Main.car.rearABSUse) {
 					absLightOn = false;
 				}
 

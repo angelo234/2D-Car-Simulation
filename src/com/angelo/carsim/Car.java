@@ -59,7 +59,7 @@ public class Car implements IRendering{
 	
 	
 	//When AWD disabled, car becomes FWD
-	public boolean awdEnabled = true;
+	public boolean awdEnabled = false;
 	public boolean electronicPowerDistributionEnabled = false;
 	public boolean electronicBrakeDistributionEnabled = true;
 	public boolean absEnabled = true;
@@ -72,9 +72,11 @@ public class Car implements IRendering{
 	public double rearRotorTemp = 298.15;
 	
 	//ABS System
-	public boolean absActive = false;
 	public boolean ABSLightOn = false;
 	public double absTimer;
+	
+	public boolean frontABSUse = false;
+	public boolean rearABSUse = false;
 	
 	public static final double MAX_SLIP_RATIO = 0.22;
 	public static final double MIN_SLIP_RATIO = 0.18;
@@ -257,9 +259,6 @@ public class Car implements IRendering{
 		rearRotorTemp = rearFinalTemp;	
 	}
 
-	private boolean prevFrontABSUse = false;
-	private boolean prevRearABSUse = false;
-	
 	private void updateElectronicSystems(double delta) {
 		
 		//ABS
@@ -267,21 +266,18 @@ public class Car implements IRendering{
 			//Update 15 times per second
 			
 			if(absTimer >= 1.0/15.0) {
-				boolean absRunning = false;
-
-				absActive = false;
+				frontABSUse = false;
+				rearABSUse = false;
 				
 				double frontSlipRatio = Math.abs(frontWheels.getSlipRatio(vehicleVelocity));
 				
 				if(vehicleVelocity > 0.1 && (frontSlipRatio > MAX_SLIP_RATIO || Display.brakeSlider.getValue() / 100.0 > frontBrakePosition) && Display.brakeSlider.getValue() > 0) {
-					absRunning = true;				
-		
 					if(frontSlipRatio < MIN_SLIP_RATIO) {
-						absActive = true;
+						frontABSUse = true;
 						frontBrakePosition += 0.15;
 					}
 					else if(frontSlipRatio > MAX_SLIP_RATIO) {
-						absActive = true;
+						frontABSUse = true;
 						frontBrakePosition -= 0.15;
 					}
 					
@@ -293,22 +289,18 @@ public class Car implements IRendering{
 						frontBrakePosition = 0;
 					}
 
-					//System.out.println("ABS! Front brake pos: "+df.format(frontBrakePosition) + ", velocity: "+df.format(frontWheels.getLinearVelocity()));	
+					System.out.println("ABS! Front brake pos: "+df.format(frontBrakePosition) + ", velocity: "+df.format(frontWheels.getLinearVelocity()));	
 				}
 				
 				double rearSlipRatio = Math.abs(rearWheels.getSlipRatio(vehicleVelocity));
 				
 				if(vehicleVelocity > 0.1 && (rearSlipRatio > MAX_SLIP_RATIO || Display.brakeSlider.getValue() / 100.0 > rearBrakePosition) && Display.brakeSlider.getValue() > 0) {
-					absRunning = true;
-					//absActive = true;
-				
-					
 					if(rearSlipRatio < MIN_SLIP_RATIO) {
-						absActive = true;
+						rearABSUse = true;
 						rearBrakePosition += 0.15;
 					}
 					else if(rearSlipRatio > MAX_SLIP_RATIO) {
-						absActive = true;
+						rearABSUse = true;
 						rearBrakePosition -= 0.15;
 					}				
 					
@@ -319,18 +311,16 @@ public class Car implements IRendering{
 						rearBrakePosition = 0;
 					}
 
-					//System.out.println("ABS! Rear brake pos: "+df.format(rearBrakePosition) + ", velocity: "+df.format(rearWheels.getLinearVelocity()));		
+					System.out.println("ABS! Rear brake pos: "+df.format(rearBrakePosition) + ", velocity: "+df.format(rearWheels.getLinearVelocity()));		
 				}
-				else {
-					absActive = false;
-				}
+
 				//absActive = absRunning;
 
 				absTimer = 0;
 			}	
 			absTimer += delta;	
 			
-			if(absActive) {
+			if(frontABSUse || rearABSUse) {
 				Display.absTimer += delta;
 			}
 		}
@@ -422,8 +412,11 @@ public class Car implements IRendering{
 		
 		keyTimer += delta;
 		
-		if(!absActive) {
+		if(!frontABSUse) {
 			frontBrakePosition = Display.brakeSlider.getValue() / 100.0;
+		}
+		
+		if(!rearABSUse) {
 			rearBrakePosition = Display.brakeSlider.getValue() / 100.0;
 			//System.out.println("ay lmao");
 		}
