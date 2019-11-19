@@ -1,8 +1,5 @@
 package com.angelo.carsim;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-
 public class Wheels {
 
 	public static final double RADIUS = 0.362;
@@ -14,6 +11,9 @@ public class Wheels {
 	private static final double D = 1;
 	private static final double E = 0.97;
 
+	public boolean locking = false;
+	public boolean slipping = false;
+	
 	private double linearVelocity = 0;
 	private double appliedTorque = 0;
 
@@ -69,6 +69,16 @@ public class Wheels {
 		double k = getSlipRatio(carVelocity);
 		//System.out.println(k);
 		
+		if(k > 0.18) {
+			slipping = true;
+		}
+		else if(k < -0.18) {
+			locking = true;
+		}
+		else {
+			slipping = false;
+			locking = false;
+		}
 		
 		double Bk = B * k;
 		

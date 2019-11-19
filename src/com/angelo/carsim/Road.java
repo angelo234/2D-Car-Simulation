@@ -25,18 +25,18 @@ public class Road implements IRendering{
 	public void update(double delta) {
 		roadTransform.translate(-Main.car.vehicleVelocity * Main.pixelsPerMeter * delta, 0);
 		
-		/*
+		
 		if(Main.car.vehicleVelocity > 2 && staticCoefficientOfFriction > 0.35) {
-			if(Math.abs(Main.car.frontWheelVelocity - Main.car.vehicleVelocity) > 5) {			
+			if(Math.abs(Main.car.frontWheels.getLinearVelocity() - Main.car.vehicleVelocity) > 5) {			
 				tireMarks.add(new Point2D.Double((499-10+Main.car.tireTexture.getWidth(null) * Car.TIRE_TEXTURE_SCALE / 2 - roadTransform.getTranslateX()),(317-5+Main.car.tireTexture.getHeight(null) * Car.TIRE_TEXTURE_SCALE - 15) - 300));
 				//System.out.println((int)(246+Main.car.tireTexture.getWidth(null) * Car.TIRE_SCALE / 2 - roadTransform.getTranslateX()));
 			}
 			
-			if(Math.abs(Main.car.rearWheelVelocity - Main.car.vehicleVelocity) > 5) {
+			if(Math.abs(Main.car.rearWheels.getLinearVelocity() - Main.car.vehicleVelocity) > 5) {
 				tireMarks.add(new Point2D.Double((246-10+Main.car.tireTexture.getWidth(null) * Car.TIRE_TEXTURE_SCALE / 2 - roadTransform.getTranslateX()),(317-5+Main.car.tireTexture.getHeight(null) * Car.TIRE_TEXTURE_SCALE - 15) - 300));
 			}
 		}
-		*/
+		
 	}
 	
 	@Override
