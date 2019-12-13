@@ -171,7 +171,7 @@ public class Display extends JFrame{
 					absTimer = 0;
 				}
 				
-				if(!Main.car.frontABSUse && !Main.car.rearABSUse) {
+				if(!Main.car.getElectronics().isFrontABSUse() && !Main.car.getElectronics().isRearABSUse()) {
 					absLightOn = false;
 				}
 
@@ -185,7 +185,7 @@ public class Display extends JFrame{
 					tcsTimer = 0;
 				}
 				
-				if(!Main.car.tcsActive) {
+				if(!Main.car.getElectronics().isTCSActive()) {
 					tcsLightOn = false;
 				}
 

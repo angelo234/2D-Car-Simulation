@@ -9,11 +9,16 @@ import java.util.List;
 
 public class Road implements IRendering{
 
+	/* Dry Tarmac = 0
+	 * Wet Tarmac = 1
+	 * Snow       = 2
+	 * Ice        = 3
+	 */
+	
+	public static final SurfaceType SURFACE_TYPE = SurfaceType.SNOW;
+	
 	private static final double LENGTH = 10000;
-	
-	public static double staticCoefficientOfFriction = 1.0;
-	public static double kineticCoefficientOfFriction = 0.9;
-	
+
 	public static AffineTransform roadTransform; 
 	
 	private List<Point2D.Double> tireMarks = new ArrayList<Point2D.Double>();
@@ -23,16 +28,16 @@ public class Road implements IRendering{
 	}
 
 	public void update(double delta) {
-		roadTransform.translate(-Main.car.vehicleVelocity * Main.pixelsPerMeter * delta, 0);
+		roadTransform.translate(-Main.car.getVehicleVelocity() * Main.pixelsPerMeter * delta, 0);
 		
 		
-		if(Main.car.vehicleVelocity > 2 && staticCoefficientOfFriction > 0.35) {
-			if(Math.abs(Main.car.frontWheels.getLinearVelocity() - Main.car.vehicleVelocity) > 5) {			
+		if(Main.car.getVehicleVelocity() > 2 && SURFACE_TYPE == SurfaceType.DRY_TARMAC) {
+			if(Math.abs(Main.car.getFrontWheels().getSlipRatio(Main.car.getVehicleVelocity())) == 1) {			
 				tireMarks.add(new Point2D.Double((499-10+Main.car.tireTexture.getWidth(null) * Car.TIRE_TEXTURE_SCALE / 2 - roadTransform.getTranslateX()),(317-5+Main.car.tireTexture.getHeight(null) * Car.TIRE_TEXTURE_SCALE - 15) - 300));
 				//System.out.println((int)(246+Main.car.tireTexture.getWidth(null) * Car.TIRE_SCALE / 2 - roadTransform.getTranslateX()));
 			}
 			
-			if(Math.abs(Main.car.rearWheels.getLinearVelocity() - Main.car.vehicleVelocity) > 5) {
+			if(Math.abs(Main.car.getRearWheels().getSlipRatio(Main.car.getVehicleVelocity())) == 1) {
 				tireMarks.add(new Point2D.Double((246-10+Main.car.tireTexture.getWidth(null) * Car.TIRE_TEXTURE_SCALE / 2 - roadTransform.getTranslateX()),(317-5+Main.car.tireTexture.getHeight(null) * Car.TIRE_TEXTURE_SCALE - 15) - 300));
 			}
 		}
@@ -44,7 +49,7 @@ public class Road implements IRendering{
 		
 		g2.setTransform(roadTransform);
 		
-		if(staticCoefficientOfFriction > 0.35) {
+		if(SURFACE_TYPE == SurfaceType.DRY_TARMAC || SURFACE_TYPE == SurfaceType.WET_TARMAC) {
 			g2.setColor(Color.DARK_GRAY);
 		}
 		else {

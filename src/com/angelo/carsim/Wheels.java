@@ -3,22 +3,29 @@ package com.angelo.carsim;
 public class Wheels {
 
 	public static final double RADIUS = 0.362;
-	public static final double MASS = 20 * 2;
+	public static final double MASS = 10 * 2;
 	public static final double INERTIA = 0.5 * MASS * RADIUS * RADIUS;
 	
-	private static final double B = 10;
-	private static final double C = 1.9;
-	private static final double D = 1;
-	private static final double E = 0.97;
-
+	/* Dry Tarmac = 0
+	 * Wet Tarmac = 1
+	 * Snow       = 2
+	 * Ice        = 3
+	 */
+	private static final double COEFFICIENT_LIST_BY_SURFACE [][] = {
+			{10, 1.9, 1, 0.97},
+			{12, 2.3, 0.82, 1},
+			{5, 2, 0.3, 1},
+			{4, 2, 0.1, 1}			
+	};
+	
 	public boolean locking = false;
 	public boolean slipping = false;
 	
 	private double linearVelocity = 0;
 	private double appliedTorque = 0;
 
-	public void update(double delta) {
-		linearVelocity += appliedTorque / INERTIA * RADIUS * delta;
+	public void update(double delta, double load, double carVelocity) {
+		linearVelocity += (appliedTorque - getTractionTorque(load, carVelocity)) / INERTIA * RADIUS * delta;
 		
 		appliedTorque = 0;
 		
@@ -79,6 +86,11 @@ public class Wheels {
 			slipping = false;
 			locking = false;
 		}
+		
+		double B = COEFFICIENT_LIST_BY_SURFACE[Road.SURFACE_TYPE.getSurfaceIndex()][0];
+		double C = COEFFICIENT_LIST_BY_SURFACE[Road.SURFACE_TYPE.getSurfaceIndex()][1];
+		double D = COEFFICIENT_LIST_BY_SURFACE[Road.SURFACE_TYPE.getSurfaceIndex()][2];
+		double E = COEFFICIENT_LIST_BY_SURFACE[Road.SURFACE_TYPE.getSurfaceIndex()][3];
 		
 		double Bk = B * k;
 		

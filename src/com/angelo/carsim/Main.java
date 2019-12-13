@@ -1,5 +1,7 @@
 package com.angelo.carsim;
 
+import java.text.DecimalFormat;
+
 public class Main {
 	
 	public static final double GRAVITY = 9.81;
@@ -12,6 +14,8 @@ public class Main {
 	public static Road road;	
 	public static Display display;
 	
+	public static DecimalFormat df;
+	
 	public static double pixelsPerMeter;
 	
 	private static long lastFrameTime;
@@ -20,6 +24,9 @@ public class Main {
 	private static double uDelta = 0;
 
 	private static void init(){
+		df = new DecimalFormat();
+		df.setMaximumFractionDigits(2);
+		
 		car = new Car();
 		road = new Road();		
 		
