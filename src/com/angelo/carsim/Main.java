@@ -7,7 +7,7 @@ public class Main {
 	public static final double GRAVITY = 9.81;
 	
 	//Updates per Second
-	private static final int UPS = 1000;
+	private static final int UPS = 10000;
 	private static final int FPS = 144;
 	
 	public static Car car;

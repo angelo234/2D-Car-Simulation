@@ -18,16 +18,6 @@ public class Car implements IRendering{
 	public static final double CAR_TEXTURE_SCALE = 0.4;
 	public static final double TIRE_TEXTURE_SCALE = 0.41;
 	
-	//Transmission/Drivetrain Constants
-	public static final double GEAR_RATIOS[] = {2.786, 1.614, 1.082, 0.773, 0.566};
-	
-	public static final double DIFF_RATIO = 4.5;
-	public static final double TRANSMISSION_EFFICIENCY = 1.0;		
-	
-	//Engine Constants
-	public static final double IDLE_RPM = 1200;
-	public static final double REDLINE_RPM = 6700;
-	
 	//Body Constants	
 	public static final double CAR_MASS = 1588;
 	public static final double DRAG_COEFFICIENT = 0.41;
@@ -42,7 +32,7 @@ public class Car implements IRendering{
 	public static final double FRONT_SUSPENSION_STIFFNESS = 88772.4;
 	public static final double REAR_SUSPENSION_STIFFNESS = 67010.4;
 	
-	public static final double MAX_BRAKE_TORQUE = 8000;
+	public static final double MAX_BRAKE_TORQUE = 12500;
 	
 	//Brake Rotors
 	public static final double CAST_IRON_SPECIFIC_HEAT_CAPACITY = 460;
@@ -51,15 +41,13 @@ public class Car implements IRendering{
 	public static final double CONVECTIVE_HEAT_TRANSFER_COEFFICIENT = -20;
 	public static final double BRAKE_ROTOR_SURFACE_AREA = 0.145931754;
 	
-	//When AWD disabled, car becomes FWD
-	public boolean awdEnabled = true;
-	
 	public double throttlePosition = 0f;
 	public double frontBrakePosition = 0f;
 	public double rearBrakePosition = 0f;
-	public int currentGear = 0;
 	
 	private Electronics electronics;
+	
+	private Drivetrain drivetrain;
 	
 	private Wheels frontWheels;
 	private Wheels rearWheels;	
@@ -71,7 +59,6 @@ public class Car implements IRendering{
 	private double rearRotorTemp = 298.15;
 	
 	private double mpg;
-	private double rpm;
 	private double carAcceleration;
 	private double weightF;
 	private double weightR;
@@ -134,6 +121,8 @@ public class Car implements IRendering{
 		
 		electronics = new Electronics();
 		
+		drivetrain = new Drivetrain(this);
+		
 		frontWheels = new Wheels();
 		rearWheels = new Wheels();
 		
@@ -159,7 +148,7 @@ public class Car implements IRendering{
 		
 		double kmh = 0;
 		
-		if(awdEnabled) {
+		if(drivetrain.awdEnabled) {
 			kmh = (frontWheels.getLinearVelocity() + rearWheels.getLinearVelocity()) / 2 * 3.6;
 		}
 		else {
@@ -167,7 +156,7 @@ public class Car implements IRendering{
 		}
 		
 		Display.kmh.setValue(kmh);
-		Display.rpm.setValue(rpm / 1000.0);
+		Display.rpm.setValue(drivetrain.getRPM() / 1000.0);
 	}
 	
 	private void updateSpeedGoalValues(double delta) {
@@ -283,13 +272,13 @@ public class Car implements IRendering{
 			throttlePosition = Display.throttleSlider.getValue() / 100.0;
 		}
 		
-		currentGear = Display.gearSlider.getValue() - 1;
+		drivetrain.currentGear = Display.gearSlider.getValue() - 1;
 
 	}
 	
 	private void updateVehicleAcceleration(double delta) {	
 		frontWheelsDriveTorque = getDriveTorqueForFrontWheels(delta, true);
-		rearWheelsDriveTorque = getDriveTorqueForRearWheels(awdEnabled, delta, true);
+		rearWheelsDriveTorque = getDriveTorqueForRearWheels(drivetrain.awdEnabled, delta, true);
 
 		if(vehicleVelocity <= 0 && frontWheelsDriveTorque < 0) {
 			frontWheelsDriveTorque = 0;		
@@ -354,18 +343,6 @@ public class Car implements IRendering{
 		
 		previousAngle = angle;
 	}
-
-	private double getOutputTorque(double delta) {
-		updateEngineRPM();
-		
-		double engineTorque = getEngineTorqueFromRPM(rpm) * throttlePosition;
-		double driveTorque = engineTorque * getGearRatio(currentGear) * DIFF_RATIO * TRANSMISSION_EFFICIENCY;
-		//System.out.println("RPM: "+rpm+", Torque: "+engineTorque);
-
-		updateMPG(engineTorque, rpm, delta);
-		
-		return driveTorque;
-	}
 	
 	private double getDriveTorqueForFrontWheels(double delta, boolean updateBrakeTemperature) {
 		double brakeTorque = getFrontBrakeTorque();
@@ -381,9 +358,9 @@ public class Car implements IRendering{
 			frontRotorTemp += (brakeTorque / Wheels.RADIUS * frontWheels.getLinearVelocity() * delta) / (10 * CAST_IRON_SPECIFIC_HEAT_CAPACITY);
 		}	
 		
-		double driveTorque = getOutputTorque(delta);
+		double driveTorque = drivetrain.getOutputTorque(delta);
 		
-		if(awdEnabled) {
+		if(drivetrain.awdEnabled) {
 			if(electronics.electronicPowerDistributionEnabled) {
 				driveTorque *= (weightF / Main.GRAVITY / CAR_MASS);
 			}
@@ -414,7 +391,7 @@ public class Car implements IRendering{
 		}
 		
 		
-		double driveTorque = getOutputTorque(delta);
+		double driveTorque = drivetrain.getOutputTorque(delta);
 		
 		if(isPowered) {
 			if(electronics.electronicPowerDistributionEnabled) {
@@ -449,38 +426,6 @@ public class Car implements IRendering{
 		double tirePressure = 2;
 		
 		return 0.005 + (1.0 / tirePressure) * (0.01 + 0.0095 * Math.pow(vehicleVelocity * 3.6 / 100.0, 2));
-	}
-
-	public void updateEngineRPM() {
-		double centerDiffVelocity = 0;
-		
-		if(awdEnabled) {
-			centerDiffVelocity = (frontWheels.getLinearVelocity() + rearWheels.getLinearVelocity()) / 2;
-		}
-		else {
-			centerDiffVelocity = frontWheels.getLinearVelocity();
-		}
-		
-		double wheelRotationRate = (double) (centerDiffVelocity * 30 / (Math.PI * Wheels.RADIUS));
-		
-		rpm = wheelRotationRate * getGearRatio(currentGear) * DIFF_RATIO;
-		
-		rpm = Math.max(rpm, IDLE_RPM);
-	}
-
-	private double getGearRatio(int gear){
-		return GEAR_RATIOS[gear];
-	}
-	
-	public double getEngineTorqueFromRPM(double rpm){
-		//-0.00000846x2+0.0749x+22.6		
-		double torque = (double) (-0.00000846 * Math.pow(rpm, 2) + 0.0749 * rpm + 22.6);
-		
-		if(rpm >= REDLINE_RPM) {
-			torque = 0;
-		}
-		
-		return torque;
 	}
 
 	@Override

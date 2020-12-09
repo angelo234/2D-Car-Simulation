@@ -15,7 +15,7 @@ public class Road implements IRendering{
 	 * Ice        = 3
 	 */
 	
-	public static final SurfaceType SURFACE_TYPE = SurfaceType.SNOW;
+	public static final SurfaceType SURFACE_TYPE = SurfaceType.ICE;
 	
 	private static final double LENGTH = 10000;
 

@@ -112,7 +112,7 @@ public class Display extends JFrame{
 		this.add(createUIPanel());
 		this.addKeyListener(new Keyboard());
 		this.pack();
-		this.setResizable(false);
+		//this.setResizable(false);
 		this.setLocationRelativeTo(null);
 		this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		this.setVisible(true);
